@@ -1,0 +1,7 @@
+syntax: glob
+
+*.py[co]
+*.autosave
+*~
+*.swp
+.DS_Store
