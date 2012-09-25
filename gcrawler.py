@@ -5,8 +5,7 @@
     BSD License
     2011-12 by raptor.zh@gmail.com.
 """
-import gevent
-from gevent import monkey, queue
+from gevent import monkey, queue, spawn
 
 monkey.patch_all()
 
@@ -50,7 +49,7 @@ class Scheduler:
         self.max_running = max_running
         for url in urls:
             self.pendings.put(Request(url=url, parser=parser))
-        gevent.spawn(self.doSchedule).join()
+        spawn(self.doSchedule).join()
 
     @retryOnURLError()
     def fetch(self, url):
@@ -63,10 +62,10 @@ class Scheduler:
         results = []
         try:
             data = self.fetch(req.url)
-            if req.parser != None:
+            if req.parser:
                 res = req.parser(req.url, data)
                 for r in res:
-                    if type(r) == type(Request()) and r.__class__ == Request:
+                    if isinstance(r, Request):
                         self.pendings.put(r)
                     else:
                         results.append(r)
@@ -85,17 +84,17 @@ class Scheduler:
                 while runnings < self.max_running:
                     req = self.pendings.get_nowait()
                     logger.debug("new greenlet for: %s" % req.url)
-                    gevent.spawn(self.parser, req)
+                    spawn(self.parser, req)
                     runnings += 1
             except queue.Empty:
                 pass
             resp = self.responses.get()
             runnings -= 1
-            if resp.result == None:  # None means error!
-                logger.error("Fetch fail: %s" % resp.request.url)
-            elif resp.result != []:
+            if resp.result and isinstance(resp.result, list):
                 try:
                     self.pipeline(resp)
                 except:
                     import traceback
                     traceback.print_exc()
+            elif not isinstance(resp.result, list):  # not list means error!
+                logger.error("Fetch fail: %s" % resp.request.url)
