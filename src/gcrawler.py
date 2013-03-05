@@ -42,17 +42,17 @@ class Response:
 
 
 class Scheduler:
-    def __init__(self, urls, parser, pipeline, max_running=20):
+    def __init__(self, urls, parser, pipeline, fetcher=None, max_running=20):
         self.pipeline = pipeline
         self.pendings = queue.Queue(-1)
         self.responses = queue.Queue(-1)
         self.max_running = max_running
         for url in urls:
             self.pendings.put(Request(url=url, parser=parser))
+        self.fetcher = retryOnURLError()(fetcher or self.default_fetcher)
         spawn(self.doSchedule).join()
 
-    @retryOnURLError()
-    def fetch(self, url):
+    def default_fetcher(self, url):
         f = urllib2.urlopen(url)
         data = f.read()
         f.close()
@@ -61,7 +61,7 @@ class Scheduler:
     def parser(self, req):
         results = []
         try:
-            data = self.fetch(req.url)
+            data = self.fetcher(req.url)
             if req.parser:
                 res = req.parser(req.url, data)
                 for r in res:
